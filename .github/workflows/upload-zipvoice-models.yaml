@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   upload-zipvoice-models:
-    if: github.repository_owner == 'k2-fsa' || github.repository_owner == 'csukuangfj'
+    if: github.repository_owner == 'k2-fsa' || github.repository_owner == 'csukuangfj' || github.repository_owner == 'cgisky1980'
     name: upload zipvoice models
     runs-on: ${{ matrix.os }}
     strategy:
