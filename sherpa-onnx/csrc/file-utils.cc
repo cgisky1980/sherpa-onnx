@@ -10,12 +10,8 @@
 #include <string>
 #include <vector>
 
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
+#if __has_include(<sys/stat.h>)
+#include <sys/stat.h>
 #endif
 
 #include "sherpa-onnx/csrc/macros.h"
@@ -23,7 +19,8 @@ namespace fs = std::experimental::filesystem;
 namespace sherpa_onnx {
 
 bool FileExists(const std::string &filename) {
-  return fs::exists(filename);
+  struct stat buffer;
+  return (stat(filename.c_str(), &buffer) == 0);
 }
 
 void AssertFileExists(const std::string &filename) {
