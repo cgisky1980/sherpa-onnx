@@ -1,0 +1,265 @@
+name: build-and-release-v1.12.20
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.12.20)'
+        required: true
+        default: '1.12.20'
+
+jobs:
+  build-windows-x64:
+    name: Build Windows x64
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        shared_lib: [ON, OFF]
+        with_tts: [ON, OFF]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_ACTION_TOKEN }}
+
+      - name: Update version to v1.12.20
+        shell: bash
+        run: |
+          sed -i 's/SHERPA_ONNX_VERSION.*/SHERPA_ONNX_VERSION "1.12.20"/' CMakeLists.txt
+          cat CMakeLists.txt | grep SHERPA_ONNX_VERSION
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir build
+          cd build
+          cmake ^
+            -A x64 ^
+            -DSHERPA_ONNX_ENABLE_TTS=${{ matrix.with_tts }} ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DBUILD_SHARED_LIBS=${{ matrix.shared_lib }} ^
+            -DCMAKE_INSTALL_PREFIX=./install ^
+            ..
+
+      - name: Build sherpa-onnx
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config Release -- -m:2
+          cmake --build . --config Release --target install -- -m:2
+
+      - name: Package release
+        shell: bash
+        run: |
+          cd build
+          SHERPA_ONNX_VERSION="1.12.20"
+          
+          shared_lib=${{ matrix.shared_lib }}
+          if [[ $shared_lib == "ON" ]]; then
+            suffix=shared
+          else
+            suffix=static
+          fi
+          
+          if [[ ${{ matrix.with_tts }} == ON ]]; then
+            dst=sherpa-onnx-${SHERPA_ONNX_VERSION}-win-x64-$suffix
+          else
+            dst=sherpa-onnx-${SHERPA_ONNX_VERSION}-win-x64-$suffix-no-tts
+          fi
+          
+          mkdir $dst
+          cp -a install/bin $dst/
+          cp -a install/lib $dst/
+          cp -a install/include $dst/
+          tar cjvf ${dst}.tar.bz2 $dst
+
+      - name: Upload Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: sherpa-onnx-${{ matrix.shared_lib }}-${{ matrix.with_tts }}
+          path: build/*.tar.bz2
+
+  build-linux-x64:
+    name: Build Linux x64
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shared_lib: [ON, OFF]
+        with_tts: [ON, OFF]
+
+    container: ghcr.io/k2-fsa/sherpa-onnx-builder:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_ACTION_TOKEN }}
+
+      - name: Update version to v1.12.20
+        shell: bash
+        run: |
+          sed -i 's/SHERPA_ONNX_VERSION.*/SHERPA_ONNX_VERSION "1.12.20"/' CMakeLists.txt
+          cat CMakeLists.txt | grep SHERPA_ONNX_VERSION
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir -p build
+          cd build
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSHERPA_ONNX_ENABLE_TTS=${{ matrix.with_tts }} \
+            -DBUILD_SHARED_LIBS=${{ matrix.shared_lib }} \
+            -DCMAKE_INSTALL_PREFIX=./install \
+            ..
+
+      - name: Build sherpa-onnx
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config Release -- -j$(nproc)
+          cmake --build . --config Release --target install -- -j$(nproc)
+
+      - name: Package release
+        shell: bash
+        run: |
+          cd build
+          SHERPA_ONNX_VERSION="1.12.20"
+          
+          shared_lib=${{ matrix.shared_lib }}
+          if [[ $shared_lib == "ON" ]]; then
+            suffix=shared
+          else
+            suffix=static
+          fi
+          
+          if [[ ${{ matrix.with_tts }} == ON ]]; then
+            dst=sherpa-onnx-${SHERPA_ONNX_VERSION}-linux-x64-$suffix
+          else
+            dst=sherpa-onnx-${SHERPA_ONNX_VERSION}-linux-x64-$suffix-no-tts
+          fi
+          
+          mkdir -p $dst
+          cp -a install/lib/$suffix/*.so* $dst/ 2>/dev/null || true
+          cp -a install/lib/*.a $dst/ 2>/dev/null || true
+          cp -a install/include $dst/
+          tar cjvf ${dst}.tar.bz2 $dst
+
+      - name: Upload Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: sherpa-onnx-linux-${{ matrix.shared_lib }}-${{ matrix.with_tts }}
+          path: build/*.tar.bz2
+
+  build-macos-x64:
+    name: Build macOS x64
+    runs-on: macos-13
+    strategy:
+      fail-fast: false
+      matrix:
+        shared_lib: [ON, OFF]
+        with_tts: [ON, OFF]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_ACTION_TOKEN }}
+
+      - name: Update version to v1.12.20
+        shell: bash
+        run: |
+          sed -i 's/SHERPA_ONNX_VERSION.*/SHERPA_ONNX_VERSION "1.12.20"/' CMakeLists.txt
+          cat CMakeLists.txt | grep SHERPA_ONNX_VERSION
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir -p build
+          cd build
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSHERPA_ONNX_ENABLE_TTS=${{ matrix.with_tts }} \
+            -DBUILD_SHARED_LIBS=${{ matrix.shared_lib }} \
+            -DCMAKE_INSTALL_PREFIX=./install \
+            ..
+
+      - name: Build sherpa-onnx
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config Release -- -j$(sysctl -n hw.ncpu)
+          cmake --build . --config Release --target install -- -j$(sysctl -n hw.ncpu)
+
+      - name: Package release
+        shell: bash
+        run: |
+          cd build
+          SHERPA_ONNX_VERSION="1.12.20"
+          
+          shared_lib=${{ matrix.shared_lib }}
+          if [[ $shared_lib == "ON" ]]; then
+            suffix=shared
+          else
+            suffix=static
+          fi
+          
+          if [[ ${{ matrix.with_tts }} == ON ]]; then
+            dst=sherpa-onnx-${SHERPA_ONNX_VERSION}-osx-x64-$suffix
+          else
+            dst=sherpa-onnx-${SHERPA_ONNX_VERSION}-osx-x64-$suffix-no-tts
+          fi
+          
+          mkdir -p $dst
+          cp -a install/lib/*.dylib $dst/ 2>/dev/null || true
+          cp -a install/lib/*.a $dst/ 2>/dev/null || true
+          cp -a install/include $dst/
+          tar cjvf ${dst}.tar.bz2 $dst
+
+      - name: Upload Release Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: sherpa-onnx-macos-${{ matrix.shared_lib }}-${{ matrix.with_tts }}
+          path: build/*.tar.bz2
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows-x64, build-linux-x64, build-macos-x64]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_ACTION_TOKEN }}
+        with:
+          tag_name: v1.12.20
+          release_name: Release v1.12.20
+          body: |
+            Pre-compiled binaries for sherpa-onnx v1.12.20
+            Built from source on GitHub Actions.
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Assets
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GH_ACTION_TOKEN }}
+          file_glob: true
+          file: artifacts/**/*.tar.bz2
+          tag: v1.12.20
+          overwrite: true
