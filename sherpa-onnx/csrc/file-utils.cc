@@ -10,12 +10,20 @@
 #include <string>
 #include <vector>
 
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
+
 #include "sherpa-onnx/csrc/macros.h"
 
 namespace sherpa_onnx {
 
 bool FileExists(const std::string &filename) {
-  return std::ifstream(filename).good();
+  return fs::exists(filename);
 }
 
 void AssertFileExists(const std::string &filename) {
